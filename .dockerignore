@@ -1,0 +1,8 @@
+/.idea
+/.pytest_cache
+/__pycache__
+/htmlcov
+/venv
+/.coverage
+/.env
+/docker-compose.yml
