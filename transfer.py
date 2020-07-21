@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from logging import getLogger
-from typing import Union
+from typing import Union, Dict, List
 from uuid import UUID, uuid4
 
 from asyncpg import Connection
@@ -64,16 +64,18 @@ async def on_shutdown():
     await pool.close()
 
 
-async def fetch_account_meta(account_id: UUID, timestamp: datetime = None) -> Record:
+async def fetch_accounts_meta(account_ids: List[UUID], timestamp: datetime = None) -> Dict[UUID, Record]:
     if timestamp is None:
         timestamp = datetime.now()
 
-    return await pool.fetchrow("""
-                               SELECT balance, next_transfer_index
-                               FROM account_metadata($1, $2)
-                               """,
-                               account_id,
-                               timestamp)
+    res = await pool.fetch("""
+                           SELECT id, balance, next_transfer_index
+                           FROM account_metadata($1, $2::UUID[])
+                           """,
+                           timestamp,
+                           account_ids)
+
+    return {row['id']: row for row in res}
 
 
 async def insert_account(account_id: UUID, conn: DbConn):
@@ -231,9 +233,9 @@ async def create_user_and_transfer_funds(account_id: UUID, amount: Decimal) -> d
                                  conn=conn)
 
             if amount > 0:
-                service_meta = await fetch_account_meta(SERVICE_ACCOUNT_ID)
+                metadata = await fetch_accounts_meta([SERVICE_ACCOUNT_ID])
                 return await insert_transfer(source_id=SERVICE_ACCOUNT_ID,
-                                             index=service_meta['next_transfer_index'],
+                                             index=metadata[SERVICE_ACCOUNT_ID]['next_transfer_index'],
                                              destination_id=account_id,
                                              amount=amount,
                                              conn=conn)
@@ -254,11 +256,11 @@ async def create_new_account(request: AccountBalance):
     timestamp = await create_user_and_transfer_funds(account_id=request.account_id,
                                                      amount=request.balance)
 
-    new_account_meta = await fetch_account_meta(account_id=request.account_id,
-                                                timestamp=timestamp)
+    new_metadata = await fetch_accounts_meta(account_ids=[request.account_id],
+                                             timestamp=timestamp)
 
     return AccountBalance(account_id=request.account_id,
-                          balance=new_account_meta['balance'])
+                          balance=new_metadata[request.account_id]['balance'])
 
 
 """Get account balance.
@@ -269,13 +271,13 @@ Using established earlier AccountBalance as return schema.
 
 @app.get('/accounts/{account_id}/balance', response_model=AccountBalance)
 async def get_account_balance(account_id: UUID):
-    account_meta = await fetch_account_meta(account_id)
+    metadata = await fetch_accounts_meta([account_id])
 
-    if account_meta is None:
+    if account_id not in metadata:
         raise NotFound(f'account with id {account_id} not found')
 
     return AccountBalance(account_id=account_id,
-                          balance=account_meta['balance'])
+                          balance=metadata[account_id]['balance'])
 
 
 """Make transfer.
@@ -317,33 +319,29 @@ async def make_transfer(request: TransferRequest):
     if request.source == request.destination:
         raise BadRequest('source account must not be equal to destination account')
 
-    destination_exists = await check_account_exists(request.destination)
+    metadata = await fetch_accounts_meta([request.source, request.destination])
 
-    if not destination_exists:
+    if request.destination not in metadata:
         raise BadRequest(f'destination account {request.destination} not found')
 
-    source_meta = await fetch_account_meta(request.source)
-
-    if not source_meta:
+    if request.source not in metadata:
         raise BadRequest(f'source account {request.source} not found')
 
-    if source_meta['balance'] < request.amount:
-        raise BadRequest(f'transfer amount {request.amount} is more than account total of {source_meta["balance"]}')
+    source_balance = metadata[request.source]['balance']
+    if source_balance < request.amount:
+        raise BadRequest(f'transfer amount {request.amount} is more than account total of {source_balance}')
 
     timestamp = await insert_transfer(source_id=request.source,
-                                      index=source_meta['next_transfer_index'],
+                                      index=metadata[request.source]['next_transfer_index'],
                                       destination_id=request.destination,
                                       amount=request.amount,
                                       conn=pool)
 
-    new_source_meta = await fetch_account_meta(account_id=request.source,
-                                               timestamp=timestamp)
+    new_metadata = await fetch_accounts_meta(account_ids=[request.source, request.destination],
+                                             timestamp=timestamp)
 
-    new_destination_meta = await fetch_account_meta(account_id=request.destination,
-                                                    timestamp=timestamp)
-
-    return TransferResult(source_balance=new_source_meta['balance'],
-                          destination_balance=new_destination_meta['balance'])
+    return TransferResult(source_balance=new_metadata[request.source]['balance'],
+                          destination_balance=new_metadata[request.destination]['balance'])
 
 
 """The End.

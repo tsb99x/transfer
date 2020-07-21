@@ -28,25 +28,27 @@ CREATE INDEX transfer_created_at ON transfer(created_at);
 
 -- Tricky function to remove SQL aggregation mess from service application
 
-CREATE FUNCTION account_metadata (IN UUID, IN TIMESTAMPTZ)
-RETURNS TABLE (balance NUMERIC, next_transfer_index INTEGER)
+CREATE FUNCTION account_metadata (IN TIMESTAMPTZ, in UUID[])
+RETURNS TABLE (id UUID, balance NUMERIC, next_transfer_index INTEGER)
 AS $BODY$
     -- If some values not found after left join (NULL), replace them with 0
     SELECT
+       a.id,
        COALESCE(incoming_sum, 0) - COALESCE(outgoing_sum, 0) AS balance,
        COALESCE(last_index + 1, 0) AS next_transfer_index
-    -- Enforce account existence in account table
+    -- Enforce accounts existence in account table
     FROM (SELECT
               id
           FROM account
-          WHERE id = $1) a
+          WHERE id = any($2)
+          AND created_at <= $1) a
     -- Join with sum of all incoming transfers until specified timestamp
     LEFT JOIN (SELECT
                    destination AS id,
                    SUM(amount) AS incoming_sum
                FROM transfer
-               WHERE destination = $1
-               AND created_at <= $2
+               WHERE destination = any($2)
+               AND created_at <= $1
                GROUP BY destination) i ON i.id = a.id
     -- Join with sum of all outgoing transfers and last transfer index until specified timestamp
     LEFT JOIN (SELECT
@@ -54,8 +56,8 @@ AS $BODY$
                    SUM(amount) AS outgoing_sum,
                    MAX(index) AS last_index
                FROM transfer
-               WHERE source = $1
-               AND created_at <= $2
+               where source = any($2)
+               AND created_at <= $1
                GROUP BY source) o ON o.id = a.id;
 $BODY$
 LANGUAGE SQL;
@@ -75,10 +77,10 @@ AS $BODY$
 
         SELECT balance
         INTO source_balance
-        FROM account_metadata(NEW.source, NOW());
+        FROM account_metadata(NOW(), ARRAY[NEW.source]::uuid[]);
 
         IF source_balance < NEW.amount THEN
-            RAISE EXCEPTION '% balance should be bigger than %', new.source, new.amount;
+            RAISE EXCEPTION '% balance should be bigger than %', NEW.source, NEW.amount;
         END IF;
 
         RETURN NEW;

@@ -76,6 +76,13 @@ To shut everything down and cleanup (flag -v is for database volume removal):
 
   docker-compose down -v
 
+Integration Testing & Code Coverage
+-----------------------------------
+
+To launch test suite and get code coverage report in HTML format, use:
+
+  pytest --cov-report html --cov transfer test.py
+
 Performance Testing
 -------------------
 
