@@ -33,11 +33,10 @@ def test_context_client():
 """Health check route"""
 
 
-def test_should_answer_alive_on_health():
+def test_should_answer_on_health():
     with test_context_client() as client:
         res = client.get('/health')
-        assert res.status_code == 200
-        assert res.json() == {'status': 'alive'}
+        assert res.status_code == 204
 
 
 """Create account route"""
@@ -56,8 +55,7 @@ def test_should_create_account_properly():
         req, res = create_account(client=client,
                                   account_id=uuid4(),
                                   balance=1)
-        assert res.status_code == 200
-        assert res.json() == req
+        assert res.status_code == 204
 
 
 def test_should_create_account_but_do_no_transfers_on_zero_init_balance():
@@ -65,8 +63,7 @@ def test_should_create_account_but_do_no_transfers_on_zero_init_balance():
         req, res = create_account(client=client,
                                   account_id=uuid4(),
                                   balance=0)
-        assert res.status_code == 200
-        assert res.json() == req
+        assert res.status_code == 204
 
 
 def test_should_not_create_account_with_negative_balance():
@@ -84,14 +81,13 @@ def test_should_not_create_account_if_already_exists():
         req, res = create_account(client=client,
                                   account_id=account_id,
                                   balance=0)
-        assert res.status_code == 200
-        assert res.json() == req
+        assert res.status_code == 204
 
         req, res = create_account(client=client,
                                   account_id=account_id,
                                   balance=0)
         assert res.status_code == 400
-        assert res.json() == error_response(f'account with id {account_id} already exists')
+        assert res.json() == error_response(f'account already exists')
 
 
 async def mock_insert_transfer(**__):
@@ -110,7 +106,7 @@ def test_should_not_leave_created_account_if_cannot_transfer_initial_funds():
 
             res = client.get(f'/accounts/{account_id}/balance')
             assert res.status_code == 404
-            assert res.json() == error_response(f'account with id {account_id} not found')
+            assert res.json() == error_response(f'account not found')
 
 
 """Account balance route"""
@@ -134,7 +130,7 @@ def test_should_not_get_balance_if_account_does_not_exist():
 
         res = client.get(f'/accounts/{account_id}/balance')
         assert res.status_code == 404
-        assert res.json() == error_response(f'account with id {account_id} not found')
+        assert res.json() == error_response(f'account not found')
 
 
 """Make transfer route"""
@@ -170,9 +166,7 @@ def test_should_make_transfer_properly():
                                source=first_id,
                                destination=second_id,
                                amount=1)
-        assert res.status_code == 200
-        assert res.json() == {'source_balance': 99,
-                              'destination_balance': 1}
+        assert res.status_code == 204
 
 
 def test_should_not_make_transfer_if_amount_is_less_or_equal_to_zero():
@@ -221,7 +215,7 @@ def test_should_not_make_transfer_if_destination_account_does_not_exist():
                                destination=random_id,
                                amount=1)
         assert res.status_code == 400
-        assert res.json() == error_response(f'destination account {random_id} not found')
+        assert res.json() == error_response(f'destination account not found')
 
 
 def test_should_not_make_transfer_if_source_account_does_not_exist():
@@ -234,7 +228,7 @@ def test_should_not_make_transfer_if_source_account_does_not_exist():
                                destination=first_id,
                                amount=1)
         assert res.status_code == 400
-        assert res.json() == error_response(f'source account {random_id} not found')
+        assert res.json() == error_response(f'source account not found')
 
 
 def test_should_not_make_transfer_if_amount_is_more_than_source_balance():
@@ -249,4 +243,4 @@ def test_should_not_make_transfer_if_amount_is_more_than_source_balance():
                                destination=second_id,
                                amount=amount)
         assert res.status_code == 400
-        assert res.json() == error_response(f'transfer amount {amount} is more than account total of {balance}')
+        assert res.json() == error_response(f'not enough funds on source account')

@@ -5,7 +5,7 @@ services:
     image: locustio/locust
     volumes:
       - ./locustfile.py:/locustfile.py
-    command: -f /locustfile.py
+    command: --host http://service:8000 -f /locustfile.py
     depends_on:
       - service
     ports:

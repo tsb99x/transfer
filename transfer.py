@@ -23,7 +23,7 @@ app = FastAPI()
 
 Pydantic models (derived from BaseSettings and BaseModel) will be used for request-response schema too.
 Config establishes loading local development params from .env file.
-If appropriate environment variable not found, than service just won't start. 
+If appropriate environment variable not found, than service just won't start.
 """
 
 
@@ -110,7 +110,7 @@ async def insert_transfer(source_id: UUID, index: int, destination_id: UUID, amo
 """Marker exceptions.
 
 Short-circuit (marker) exceptions to properly serve errors to client.
-Ensures separation of business-logic errors from generic exceptions. 
+Ensures separation of business-logic errors from generic exceptions.
 """
 
 
@@ -151,7 +151,7 @@ async def bind_request_id(request: Request, call_next):
 
 
 """Exception handlers.
- 
+
 Grouping is done from more generic handler to more concrete.
 Note that generic handler does not return exception message as-is.
 """
@@ -189,24 +189,19 @@ async def not_found_handler(_: Request, exc: NotFound):
 
 """Health-check.
 
-Deriving from BaseModel (like Settings), but now for auto-documenting API and structure validity checks.
-Note that Config has extra schema with example which is added to OpenAPI spec.
+Fast dummy route to see if server is up.
 """
 
 
-class HealthCheck(BaseModel):
-    status: str
-
-    class Config:
-        schema_extra = {'example': {'status': 'alive'}}
-
-
-@app.get('/health', response_model=HealthCheck)
+@app.get('/health', status_code=204)
 async def health_check():
-    return HealthCheck(status='alive')
+    pass
 
 
 """Create new account.
+
+Deriving AccountBalance from BaseModel (like Settings), but now for auto-documenting API and structure validity checks.
+Note that Config has extra schema with example which is added to OpenAPI spec.
 
 Note service account, the special account to keep database consistent.
 By help of it, we can ensure that total of all account balances (including service one) equals to 0.
@@ -243,7 +238,7 @@ async def create_user_and_transfer_funds(account_id: UUID, amount: Decimal) -> d
             return datetime.now()
 
 
-@app.post('/accounts', response_model=AccountBalance)
+@app.post('/accounts', status_code=204)
 async def create_new_account(request: AccountBalance):
     if request.balance < 0:
         raise BadRequest('new account balance should be greater or equal to 0')
@@ -251,16 +246,10 @@ async def create_new_account(request: AccountBalance):
     account_exists = await check_account_exists(request.account_id)
 
     if account_exists:
-        raise BadRequest(f'account with id {request.account_id} already exists')
+        raise BadRequest(f'account already exists')
 
-    timestamp = await create_user_and_transfer_funds(account_id=request.account_id,
-                                                     amount=request.balance)
-
-    new_metadata = await fetch_accounts_meta(account_ids=[request.account_id],
-                                             timestamp=timestamp)
-
-    return AccountBalance(account_id=request.account_id,
-                          balance=new_metadata[request.account_id]['balance'])
+    await create_user_and_transfer_funds(account_id=request.account_id,
+                                         amount=request.balance)
 
 
 """Get account balance.
@@ -274,7 +263,7 @@ async def get_account_balance(account_id: UUID):
     metadata = await fetch_accounts_meta([account_id])
 
     if account_id not in metadata:
-        raise NotFound(f'account with id {account_id} not found')
+        raise NotFound(f'account not found')
 
     return AccountBalance(account_id=account_id,
                           balance=metadata[account_id]['balance'])
@@ -288,7 +277,7 @@ Only single, simple write (INSERT) operation is done, though.
 """
 
 
-class TransferRequest(BaseModel):
+class Transfer(BaseModel):
     source: UUID
     destination: UUID
     amount: Decimal
@@ -299,17 +288,8 @@ class TransferRequest(BaseModel):
                                     'amount': 50.0}}
 
 
-class TransferResult(BaseModel):
-    source_balance: Decimal
-    destination_balance: Decimal
-
-    class Config:
-        schema_extra = {'example': {'source_balance': 50.0,
-                                    'destination_balance': 50.0}}
-
-
-@app.post('/transfers', response_model=TransferResult)
-async def make_transfer(request: TransferRequest):
+@app.post('/transfers', status_code=204)
+async def make_transfer(request: Transfer):
     if request.amount <= 0:
         raise BadRequest('transfer amount must be greater than 0')
 
@@ -322,26 +302,19 @@ async def make_transfer(request: TransferRequest):
     metadata = await fetch_accounts_meta([request.source, request.destination])
 
     if request.destination not in metadata:
-        raise BadRequest(f'destination account {request.destination} not found')
+        raise BadRequest(f'destination account not found')
 
     if request.source not in metadata:
-        raise BadRequest(f'source account {request.source} not found')
+        raise BadRequest(f'source account not found')
 
-    source_balance = metadata[request.source]['balance']
-    if source_balance < request.amount:
-        raise BadRequest(f'transfer amount {request.amount} is more than account total of {source_balance}')
+    if metadata[request.source]['balance'] < request.amount:
+        raise BadRequest(f'not enough funds on source account')
 
-    timestamp = await insert_transfer(source_id=request.source,
-                                      index=metadata[request.source]['next_transfer_index'],
-                                      destination_id=request.destination,
-                                      amount=request.amount,
-                                      conn=pool)
-
-    new_metadata = await fetch_accounts_meta(account_ids=[request.source, request.destination],
-                                             timestamp=timestamp)
-
-    return TransferResult(source_balance=new_metadata[request.source]['balance'],
-                          destination_balance=new_metadata[request.destination]['balance'])
+    await insert_transfer(source_id=request.source,
+                          index=metadata[request.source]['next_transfer_index'],
+                          destination_id=request.destination,
+                          amount=request.amount,
+                          conn=pool)
 
 
 """The End.

@@ -59,6 +59,8 @@ Deployment
 
 To run, just use:
 
+::
+
   docker-compose up
 
 Everything should be up and running in no time!
@@ -74,13 +76,18 @@ OpenAPI:
 
 To shut everything down and cleanup (flag -v is for database volume removal):
 
+::
+
   docker-compose down -v
 
 Integration Testing & Code Coverage
 -----------------------------------
 
-To launch test suite and get code coverage report in HTML format, use:
+To launch DB, test suite and get code coverage report in HTML format, use:
 
+::
+
+  docker-compose up -d db
   pytest --cov-report html --cov transfer test.py
 
 Performance Testing

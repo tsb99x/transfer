@@ -2,7 +2,7 @@
 
 CREATE TABLE account (
     id UUID PRIMARY KEY,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 INSERT INTO account (id)
@@ -40,8 +40,7 @@ AS $BODY$
     FROM (SELECT
               id
           FROM account
-          WHERE id = any($2)
-          AND created_at <= $1) a
+          WHERE id = any($2)) a
     -- Join with sum of all incoming transfers until specified timestamp
     LEFT JOIN (SELECT
                    destination AS id,
