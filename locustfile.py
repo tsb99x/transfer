@@ -35,6 +35,6 @@ class TransferUser(FastHttpUser):
     def on_start(self):
         res = self.client.post('/accounts', json={'account_id': str(self.id),
                                                   'balance': 1_000_000})
-        if not res.status_code == 200:
+        if not res.status_code == 204:
             raise RuntimeError('failed to create user')
         accounts.add(self.id)

@@ -3,10 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from logging import getLogger
-from typing import Union, Dict, List
+from typing import Dict, List
 from uuid import UUID, uuid4
 
-from asyncpg import Connection
 from asyncpg.pool import Pool, create_pool
 from asyncpg.protocol.protocol import Record
 from fastapi import FastAPI
@@ -22,7 +21,7 @@ app = FastAPI()
 """Environment settings.
 
 Pydantic models (derived from BaseSettings and BaseModel) will be used for request-response schema too.
-Config establishes loading local development params from .env file.
+Config establishes loading params from .env file first, overridden only by real env variables.
 If appropriate environment variable not found, than service just won't start.
 """
 
@@ -43,12 +42,9 @@ settings = Settings()
 Data layer in application is just a pooled connection interface + set of functions.
 Init database and close it on appropriate events of FastAPI lifecycle.
 If it helps, Intellij (PyCharm) does have language injections (highlighting) for multi-line SQL queries.
-Note DbConn union to simplify usage of pool or specific connection inside transaction for account creation.
 """
 
 pool: Pool
-
-DbConn = Union[Pool, Connection]
 
 
 @app.on_event('startup')
@@ -78,12 +74,12 @@ async def fetch_accounts_meta(account_ids: List[UUID], timestamp: datetime = Non
     return {row['id']: row for row in res}
 
 
-async def insert_account(account_id: UUID, conn: DbConn):
-    await conn.execute("""
-                       INSERT INTO account (id)
-                       VALUES ($1)
+async def init_account(account_id: UUID, balance: Decimal):
+    await pool.execute("""
+                       SELECT init_account($1, $2)
                        """,
-                       account_id)
+                       account_id,
+                       balance)
 
 
 async def check_account_exists(account_id: UUID) -> bool:
@@ -95,16 +91,15 @@ async def check_account_exists(account_id: UUID) -> bool:
                                account_id)
 
 
-async def insert_transfer(source_id: UUID, index: int, destination_id: UUID, amount: Decimal, conn: DbConn) -> datetime:
-    return await conn.fetchval("""
-                               INSERT INTO transfer (source, index, destination, amount)
-                               VALUES ($1, $2, $3, $4)
-                               RETURNING created_at
-                               """,
-                               source_id,
-                               index,
-                               destination_id,
-                               amount)
+async def insert_transfer(source_id: UUID, index: int, destination_id: UUID, amount: Decimal):
+    await pool.execute("""
+                       INSERT INTO transfer (source, index, destination, amount)
+                       VALUES ($1, $2, $3, $4)
+                       """,
+                       source_id,
+                       index,
+                       destination_id,
+                       amount)
 
 
 """Marker exceptions.
@@ -221,23 +216,6 @@ class AccountBalance(BaseModel):
                                     'balance': 100.0}}
 
 
-async def create_user_and_transfer_funds(account_id: UUID, amount: Decimal) -> datetime:
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await insert_account(account_id=account_id,
-                                 conn=conn)
-
-            if amount > 0:
-                metadata = await fetch_accounts_meta([SERVICE_ACCOUNT_ID])
-                return await insert_transfer(source_id=SERVICE_ACCOUNT_ID,
-                                             index=metadata[SERVICE_ACCOUNT_ID]['next_transfer_index'],
-                                             destination_id=account_id,
-                                             amount=amount,
-                                             conn=conn)
-
-            return datetime.now()
-
-
 @app.post('/accounts', status_code=204)
 async def create_new_account(request: AccountBalance):
     if request.balance < 0:
@@ -248,8 +226,8 @@ async def create_new_account(request: AccountBalance):
     if account_exists:
         raise BadRequest(f'account already exists')
 
-    await create_user_and_transfer_funds(account_id=request.account_id,
-                                         amount=request.balance)
+    await init_account(account_id=request.account_id,
+                       balance=request.balance)
 
 
 """Get account balance.
@@ -313,8 +291,7 @@ async def make_transfer(request: Transfer):
     await insert_transfer(source_id=request.source,
                           index=metadata[request.source]['next_transfer_index'],
                           destination_id=request.destination,
-                          amount=request.amount,
-                          conn=pool)
+                          amount=request.amount)
 
 
 """The End.

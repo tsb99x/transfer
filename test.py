@@ -90,25 +90,6 @@ def test_should_not_create_account_if_already_exists():
         assert res.json() == error_response(f'account already exists')
 
 
-async def mock_insert_transfer(**__):
-    raise transfer.BadRequest('could not make transfer')
-
-
-def test_should_not_leave_created_account_if_cannot_transfer_initial_funds():
-    with test_context_client() as client:
-        with patch.object(transfer, 'insert_transfer', wraps=mock_insert_transfer):
-            account_id = uuid4()
-            req, res = create_account(client=client,
-                                      account_id=account_id,
-                                      balance=100)
-            assert res.status_code == 400
-            assert res.json() == error_response('could not make transfer')
-
-            res = client.get(f'/accounts/{account_id}/balance')
-            assert res.status_code == 404
-            assert res.json() == error_response(f'account not found')
-
-
 """Account balance route"""
 
 
