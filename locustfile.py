@@ -6,9 +6,9 @@ from locust.contrib.fasthttp import FastHttpUser
 
 """Performance Test.
 
-Accounts set is a storage for all accounts, used in test.
+Accounts set is a storage for all accounts, used in the test.
 Useful, when modeling transfer from some account to another.
-Note that if we cannot create user, raise an exception and stop modeling that specific user.
+Note that if we cannot create a user, raise an exception and stop modeling that specific user.
 """
 
 accounts = set()

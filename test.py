@@ -72,7 +72,7 @@ def test_should_not_create_account_with_negative_balance():
                                   account_id=uuid4(),
                                   balance=-1)
         assert res.status_code == 400
-        assert res.json() == error_response('new account balance should be greater or equal to 0')
+        assert res.json() == error_response('a new account balance should be greater or equal to 0')
 
 
 def test_should_not_create_account_if_already_exists():
@@ -171,7 +171,7 @@ def test_should_not_make_transfer_if_source_account_is_service_one():
                                destination=first_id,
                                amount=1)
         assert res.status_code == 400
-        assert res.json() == error_response('service account cannot be used as source account')
+        assert res.json() == error_response('the service account cannot be use as a source account')
 
 
 def test_should_not_make_transfer_if_source_and_destination_are_the_same():
@@ -183,7 +183,7 @@ def test_should_not_make_transfer_if_source_and_destination_are_the_same():
                                destination=first_id,
                                amount=1)
         assert res.status_code == 400
-        assert res.json() == error_response('source account must not be equal to destination account')
+        assert res.json() == error_response('source account must not be equal to the destination account')
 
 
 def test_should_not_make_transfer_if_destination_account_does_not_exist():
@@ -224,4 +224,4 @@ def test_should_not_make_transfer_if_amount_is_more_than_source_balance():
                                destination=second_id,
                                amount=amount)
         assert res.status_code == 400
-        assert res.json() == error_response(f'not enough funds on source account')
+        assert res.json() == error_response(f'not enough funds on the source account')

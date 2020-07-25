@@ -22,7 +22,7 @@ app = FastAPI()
 
 Pydantic models (derived from BaseSettings and BaseModel) will be used for request-response schema too.
 Config establishes loading params from .env file first, overridden only by real env variables.
-If appropriate environment variable not found, than service just won't start.
+If appropriate environment variables not found, then service just won't start.
 """
 
 
@@ -39,8 +39,8 @@ settings = Settings()
 
 """Database initialization.
 
-Data layer in application is just a pooled connection interface + set of functions.
-Init database and close it on appropriate events of FastAPI lifecycle.
+The data layer in the application is just a pooled connection interface + set of functions.
+Init database and close it on appropriate events of the FastAPI lifecycle.
 If it helps, Intellij (PyCharm) does have language injections (highlighting) for multi-line SQL queries.
 """
 
@@ -104,7 +104,7 @@ async def insert_transfer(source_id: UUID, index: int, destination_id: UUID, amo
 
 """Marker exceptions.
 
-Short-circuit (marker) exceptions to properly serve errors to client.
+Short-circuit (marker) exceptions to properly serve errors to the client.
 Ensures separation of business-logic errors from generic exceptions.
 """
 
@@ -122,8 +122,8 @@ class NotFound(RuntimeError):
 """Request identification.
 
 Context-aware variable to bind and retrieve unique Request-ID.
-Exists for sole purpose of logging and user-friendly error processing.
-Note that generator of request ids needed for test mocking.
+Exists for the sole purpose of logging and user-friendly error processing.
+Note that generator of request IDs needed for test mocking.
 """
 
 ctx_request_id: ContextVar[UUID] = ContextVar('request_id')
@@ -184,7 +184,7 @@ async def not_found_handler(_: Request, exc: NotFound):
 
 """Health-check.
 
-Fast dummy route to see if server is up.
+Fast dummy route to see if the server is up.
 """
 
 
@@ -193,15 +193,15 @@ async def health_check():
     pass
 
 
-"""Create new account.
+"""Create a new account.
 
 Deriving AccountBalance from BaseModel (like Settings), but now for auto-documenting API and structure validity checks.
-Note that Config has extra schema with example which is added to OpenAPI spec.
+Note that Config has an extra schema with an example that is added to OpenAPI spec.
 
 Note service account, the special account to keep database consistent.
-By help of it, we can ensure that total of all account balances (including service one) equals to 0.
-Ideally, it should be in database, not hardcoded in the application itself.
-All initial funds come as transfer from service account to new account.
+With the help of it, we can ensure that the total of all account balances (including service one) equals to 0.
+Ideally, it should be in the database, not hardcoded in the application itself.
+All initial funds come as a transfer from the service account to the new account.
 """
 
 SERVICE_ACCOUNT_ID = UUID('00000000-0000-0000-0000-000000000000')
@@ -219,7 +219,7 @@ class AccountBalance(BaseModel):
 @app.post('/accounts', status_code=204)
 async def create_new_account(request: AccountBalance):
     if request.balance < 0:
-        raise BadRequest('new account balance should be greater or equal to 0')
+        raise BadRequest('a new account balance should be greater or equal to 0')
 
     account_exists = await check_account_exists(request.account_id)
 
@@ -249,9 +249,8 @@ async def get_account_balance(account_id: UUID):
 
 """Make transfer.
 
-Core of service: transfer route and its processing.
-Mostly naive, read-heavy impl with multiple round-trips to database.
-Only single, simple write (INSERT) operation is done, though.
+The core of service: transfer route and its processing.
+Only a single write (INSERT) operation is done.
 """
 
 
@@ -272,10 +271,10 @@ async def make_transfer(request: Transfer):
         raise BadRequest('transfer amount must be greater than 0')
 
     if request.source == SERVICE_ACCOUNT_ID:
-        raise BadRequest('service account cannot be used as source account')
+        raise BadRequest('the service account cannot be use as a source account')
 
     if request.source == request.destination:
-        raise BadRequest('source account must not be equal to destination account')
+        raise BadRequest('source account must not be equal to the destination account')
 
     metadata = await fetch_accounts_meta([request.source, request.destination])
 
@@ -286,7 +285,7 @@ async def make_transfer(request: Transfer):
         raise BadRequest(f'source account not found')
 
     if metadata[request.source]['balance'] < request.amount:
-        raise BadRequest(f'not enough funds on source account')
+        raise BadRequest(f'not enough funds on the source account')
 
     await insert_transfer(source_id=request.source,
                           index=metadata[request.source]['next_transfer_index'],
@@ -297,5 +296,5 @@ async def make_transfer(request: Transfer):
 """The End.
 
 Note, we do not initialize service here.
-This ensures availability of quick REPL development and testing.
+This ensures the availability of quick REPL development and testing.
 """
