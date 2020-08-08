@@ -28,7 +28,7 @@ CREATE INDEX transfer_created_at ON transfer(created_at);
 
 -- Tricky function to remove SQL aggregation mess from service application
 
-CREATE FUNCTION account_metadata(TIMESTAMPTZ, UUID[])
+CREATE FUNCTION account_metadata(UUID[])
 RETURNS TABLE (id UUID, balance NUMERIC, next_transfer_index INTEGER) AS $BODY$
     BEGIN
         RETURN QUERY
@@ -41,14 +41,13 @@ RETURNS TABLE (id UUID, balance NUMERIC, next_transfer_index INTEGER) AS $BODY$
         FROM (SELECT
                   a.id
               FROM account a
-              WHERE a.id = ANY($2)) a
+              WHERE a.id = ANY($1)) a
         -- Join with sum of all incoming transfers until specified timestamp
         LEFT JOIN (SELECT
                        destination AS id,
                        SUM(amount) AS incoming_sum
                    FROM transfer
-                   WHERE destination = ANY($2)
-                   AND created_at <= $1
+                   WHERE destination = ANY($1)
                    GROUP BY destination) i ON i.id = a.id
         -- Join with sum of all outgoing transfers and last transfer index until specified timestamp
         LEFT JOIN (SELECT
@@ -56,8 +55,7 @@ RETURNS TABLE (id UUID, balance NUMERIC, next_transfer_index INTEGER) AS $BODY$
                        SUM(amount) AS outgoing_sum,
                        MAX(index) AS last_index
                    FROM transfer
-                   WHERE source = ANY($2)
-                   AND created_at <= $1
+                   WHERE source = ANY($1)
                    GROUP BY source) o ON o.id = a.id;
     END;
 $BODY$
@@ -77,7 +75,7 @@ RETURNS TRIGGER AS $BODY$
 
         SELECT balance
         INTO source_balance
-        FROM account_metadata(NOW(), ARRAY[NEW.source]::uuid[]);
+        FROM account_metadata(ARRAY[NEW.source]::uuid[]);
 
         IF source_balance < NEW.amount THEN
             RAISE EXCEPTION '% balance should be bigger than %', NEW.source, NEW.amount;

@@ -1,6 +1,5 @@
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
 from logging import getLogger
 from typing import Dict, List
@@ -60,15 +59,11 @@ async def on_shutdown():
     await pool.close()
 
 
-async def fetch_accounts_meta(account_ids: List[UUID], timestamp: datetime = None) -> Dict[UUID, Record]:
-    if timestamp is None:
-        timestamp = datetime.now()
-
+async def fetch_accounts_meta(account_ids: List[UUID]) -> Dict[UUID, Record]:
     res = await pool.fetch("""
                            SELECT id, balance, next_transfer_index
-                           FROM account_metadata($1, $2::UUID[])
+                           FROM account_metadata($1::UUID[])
                            """,
-                           timestamp,
                            account_ids)
 
     return {row['id']: row for row in res}
