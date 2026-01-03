@@ -1,4 +1,4 @@
-FROM python:3
+FROM docker.io/library/python:3
 
 WORKDIR /usr/src/app
 

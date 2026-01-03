@@ -2,7 +2,7 @@ version: '3'
 services:
 
   locust:
-    image: locustio/locust
+    image: docker.io/locustio/locust
     volumes:
       - ./locustfile.py:/locustfile.py
     command: --host http://service:8000 -f /locustfile.py
@@ -25,7 +25,7 @@ services:
       - '8000:8000'
 
   db:
-    image: postgres:12
+    image: docker.io/library/postgres:12
     restart: always
     environment:
       POSTGRES_USER: user
