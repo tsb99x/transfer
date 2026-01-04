@@ -106,6 +106,12 @@ Worst (max) median response time is recorded at *150 ms*.
 Testing was started when the count of transfer records in the database was *514k*.
 After testing there were *634k* records, i.e. *120k* records was created.
 
+Test parameters:
+- Users are hatching at a rate of *4* new users per second.
+- Swarm size is fixed at *256*, *512*, *768*, and *1024*.
+- Swarm increase every *3* minutes.
+- The final stretch is kept around *9* minutes.
+
 Peak load for nodes:
 
 - Database - 74% CPU, 62% MEM, 13% DISK
