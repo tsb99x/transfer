@@ -2,7 +2,7 @@ version: '3'
 services:
 
   locust:
-    image: docker.io/locustio/locust
+    image: docker.io/locustio/locust:1.1
     volumes:
       - ./locustfile.py:/locustfile.py
     command: --host http://service:8000 -f /locustfile.py
