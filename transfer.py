@@ -3,7 +3,6 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal
 from logging import getLogger
-from typing import Dict, List
 from uuid import UUID, uuid4
 
 from asyncpg.pool import Pool, create_pool
@@ -60,12 +59,12 @@ async def lifespan(_: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-async def fetch_accounts_meta(account_ids: List[UUID]) -> Dict[UUID, Record]:
+async def fetch_accounts_meta(account_ids: list[UUID]) -> dict[UUID, Record]:
     res = await pool.fetch(
         """
-                           SELECT id, balance, next_transfer_index
-                           FROM account_metadata($1::UUID[])
-                           """,
+        SELECT id, balance, next_transfer_index
+        FROM account_metadata($1::UUID[])
+        """,
         account_ids,
     )
 
@@ -75,8 +74,8 @@ async def fetch_accounts_meta(account_ids: List[UUID]) -> Dict[UUID, Record]:
 async def init_account(account_id: UUID, balance: Decimal):
     await pool.execute(
         """
-                       SELECT init_account($1, $2)
-                       """,
+        SELECT init_account($1, $2)
+        """,
         account_id,
         balance,
     )
@@ -85,10 +84,10 @@ async def init_account(account_id: UUID, balance: Decimal):
 async def check_account_exists(account_id: UUID) -> bool:
     return await pool.fetchval(
         """
-                               SELECT EXISTS (SELECT id
-                                              FROM account
-                                              WHERE id = $1)
-                               """,
+        SELECT EXISTS (SELECT id
+                       FROM account
+                       WHERE id = $1)
+        """,
         account_id,
     )
 
@@ -98,9 +97,9 @@ async def insert_transfer(
 ):
     await pool.execute(
         """
-                       INSERT INTO transfer (source, index, destination, amount)
-                       VALUES ($1, $2, $3, $4)
-                       """,
+        INSERT INTO transfer (source, index, destination, amount)
+        VALUES ($1, $2, $3, $4)
+        """,
         source_id,
         index,
         destination_id,
@@ -139,7 +138,7 @@ def gen_request_id() -> UUID:
     return uuid4()
 
 
-def logging_extra() -> dict:
+def logging_extra() -> dict[str, UUID]:
     return {"request_id": ctx_request_id.get()}
 
 
