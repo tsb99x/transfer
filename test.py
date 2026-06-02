@@ -1,17 +1,16 @@
 from contextlib import contextmanager
-from typing import Tuple
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
-from requests import Response, Session
+from httpx2 import Response
 
 import transfer
 
 """Utility methods, for mocking"""
 
 
-def error_response(msg: str) -> dict:
+def error_response(msg: str) -> dict[str, str]:
     return {"request_id": str(ZERO_UUID), "error": msg}
 
 
@@ -23,7 +22,7 @@ def mock_gen_request_id():
 
 
 @contextmanager
-def test_context_client():
+def context_client():
     with patch.object(transfer, "gen_request_id", wraps=mock_gen_request_id):
         with TestClient(transfer.app) as client:
             yield client
@@ -33,7 +32,7 @@ def test_context_client():
 
 
 def test_should_answer_on_health():
-    with test_context_client() as client:
+    with context_client() as client:
         res = client.get("/health")
         assert res.status_code == 204
 
@@ -42,9 +41,9 @@ def test_should_answer_on_health():
 
 
 def create_account(
-    client: Session, account_id: UUID, balance: int
-) -> Tuple[dict, Response]:
-    req = {"account_id": str(account_id), "balance": balance}
+    client: TestClient, account_id: UUID, balance: int
+) -> tuple[dict[str, str], Response]:
+    req = {"account_id": str(account_id), "balance": str(balance)}
     res = client.post(
         "/accounts", json={"account_id": str(account_id), "balance": balance}
     )
@@ -52,20 +51,20 @@ def create_account(
 
 
 def test_should_create_account_properly():
-    with test_context_client() as client:
-        req, res = create_account(client=client, account_id=uuid4(), balance=1)
+    with context_client() as client:
+        _, res = create_account(client=client, account_id=uuid4(), balance=1)
         assert res.status_code == 204
 
 
 def test_should_create_account_but_do_no_transfers_on_zero_init_balance():
-    with test_context_client() as client:
-        req, res = create_account(client=client, account_id=uuid4(), balance=0)
+    with context_client() as client:
+        _, res = create_account(client=client, account_id=uuid4(), balance=0)
         assert res.status_code == 204
 
 
 def test_should_not_create_account_with_negative_balance():
-    with test_context_client() as client:
-        req, res = create_account(client=client, account_id=uuid4(), balance=-1)
+    with context_client() as client:
+        _, res = create_account(client=client, account_id=uuid4(), balance=-1)
         assert res.status_code == 400
         assert res.json() == error_response(
             "a new account balance should be greater or equal to 0"
@@ -73,12 +72,12 @@ def test_should_not_create_account_with_negative_balance():
 
 
 def test_should_not_create_account_if_already_exists():
-    with test_context_client() as client:
+    with context_client() as client:
         account_id = uuid4()
-        req, res = create_account(client=client, account_id=account_id, balance=0)
+        _, res = create_account(client=client, account_id=account_id, balance=0)
         assert res.status_code == 204
 
-        req, res = create_account(client=client, account_id=account_id, balance=0)
+        _, res = create_account(client=client, account_id=account_id, balance=0)
         assert res.status_code == 400
         assert res.json() == error_response(f"account already exists")
 
@@ -87,7 +86,7 @@ def test_should_not_create_account_if_already_exists():
 
 
 def test_should_get_balance_properly():
-    with test_context_client() as client:
+    with context_client() as client:
         account_id = uuid4()
         req, _ = create_account(client=client, account_id=account_id, balance=0)
 
@@ -97,7 +96,7 @@ def test_should_get_balance_properly():
 
 
 def test_should_not_get_balance_if_account_does_not_exist():
-    with test_context_client() as client:
+    with context_client() as client:
         account_id = uuid4()
 
         res = client.get(f"/accounts/{account_id}/balance")
@@ -109,27 +108,27 @@ def test_should_not_get_balance_if_account_does_not_exist():
 
 
 def create_accounts(
-    client: Session, first_balance: int = 100, second_balance: int = 0
-) -> Tuple[UUID, UUID]:
+    client: TestClient, first_balance: int = 100, second_balance: int = 0
+) -> tuple[UUID, UUID]:
     first_id = uuid4()
-    req, _ = create_account(client=client, account_id=first_id, balance=first_balance)
+    _, _ = create_account(client=client, account_id=first_id, balance=first_balance)
 
     second_id = uuid4()
-    req, _ = create_account(client=client, account_id=second_id, balance=second_balance)
+    _, _ = create_account(client=client, account_id=second_id, balance=second_balance)
 
     return first_id, second_id
 
 
 def make_transfer(
-    client: Session, source: UUID, destination: UUID, amount: int
-) -> Tuple[dict, Response]:
+    client: TestClient, source: UUID, destination: UUID, amount: int
+) -> tuple[dict[str, str | int], Response]:
     req = {"source": str(source), "destination": str(destination), "amount": amount}
     res = client.post("/transfers", json=req)
     return req, res
 
 
 def test_should_make_transfer_properly():
-    with test_context_client() as client:
+    with context_client() as client:
         first_id, second_id = create_accounts(client)
 
         _, res = make_transfer(
@@ -139,7 +138,7 @@ def test_should_make_transfer_properly():
 
 
 def test_should_not_make_transfer_if_amount_is_less_or_equal_to_zero():
-    with test_context_client() as client:
+    with context_client() as client:
         first_id, second_id = create_accounts(client)
 
         _, res = make_transfer(
@@ -150,7 +149,7 @@ def test_should_not_make_transfer_if_amount_is_less_or_equal_to_zero():
 
 
 def test_should_not_make_transfer_if_source_account_is_service_one():
-    with test_context_client() as client:
+    with context_client() as client:
         first_id, _ = create_accounts(client)
 
         _, res = make_transfer(
@@ -166,7 +165,7 @@ def test_should_not_make_transfer_if_source_account_is_service_one():
 
 
 def test_should_not_make_transfer_if_source_and_destination_are_the_same():
-    with test_context_client() as client:
+    with context_client() as client:
         first_id, _ = create_accounts(client)
 
         _, res = make_transfer(
@@ -179,7 +178,7 @@ def test_should_not_make_transfer_if_source_and_destination_are_the_same():
 
 
 def test_should_not_make_transfer_if_destination_account_does_not_exist():
-    with test_context_client() as client:
+    with context_client() as client:
         first_id, _ = create_accounts(client)
         random_id = uuid4()
 
@@ -191,7 +190,7 @@ def test_should_not_make_transfer_if_destination_account_does_not_exist():
 
 
 def test_should_not_make_transfer_if_source_account_does_not_exist():
-    with test_context_client() as client:
+    with context_client() as client:
         first_id, _ = create_accounts(client)
         random_id = uuid4()
 
@@ -203,7 +202,7 @@ def test_should_not_make_transfer_if_source_account_does_not_exist():
 
 
 def test_should_not_make_transfer_if_amount_is_more_than_source_balance():
-    with test_context_client() as client:
+    with context_client() as client:
         balance = 100
         first_id, second_id = create_accounts(client=client, first_balance=balance)
 
