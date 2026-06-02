@@ -1,5 +1,6 @@
 import random
-from uuid import uuid4
+from typing import final, override
+from uuid import UUID, uuid4
 
 from locust import between, task
 from locust.contrib.fasthttp import FastHttpUser
@@ -11,28 +12,30 @@ Useful, when modeling transfer from some account to another.
 Note that if we cannot create a user, raise an exception and stop modeling that specific user.
 """
 
-accounts = set()
+accounts: set[UUID] = set()
 
 
+@final
 class TransferUser(FastHttpUser):
     wait_time = between(1, 3)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.id = uuid4()
+        self.id: UUID = uuid4()
 
     @task(3)
     def check_balance(self):
-        self.client.get(f"/accounts/{self.id}/balance")
+        _ = self.client.get(f"/accounts/{self.id}/balance")
 
     @task
     def make_transfer(self):
-        destination = random.sample(accounts - {self.id}, 1)[0]
-        self.client.post(
+        destination = random.sample(list(accounts - {self.id}), 1)[0]
+        _ = self.client.post(
             "/transfers",
             json={"source": str(self.id), "destination": str(destination), "amount": 1},
         )
 
+    @override
     def on_start(self):
         res = self.client.post(
             "/accounts", json={"account_id": str(self.id), "balance": 1_000_000}
