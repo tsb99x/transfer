@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal
@@ -11,11 +12,10 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel, ConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = getLogger("transfer")
-
-app = FastAPI()
 
 """Environment settings.
 
@@ -30,8 +30,7 @@ class Settings(BaseSettings):
     database_min_pool_size: int
     database_max_pool_size: int
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()
@@ -46,19 +45,19 @@ If it helps, Intellij (PyCharm) does have language injections (highlighting) for
 pool: Pool
 
 
-@app.on_event("startup")
-async def on_startup():
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     global pool
     pool = await create_pool(
         dsn=settings.database_url,
         min_size=settings.database_min_pool_size,
         max_size=settings.database_max_pool_size,
     )
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
+    yield
     await pool.close()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 async def fetch_accounts_meta(account_ids: List[UUID]) -> Dict[UUID, Record]:
@@ -221,13 +220,14 @@ class AccountBalance(BaseModel):
     account_id: UUID
     balance: Decimal
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "account_id": "db6008f2-eb47-432b-8977-340bfe029744",
                 "balance": 100.0,
             }
         }
+    )
 
 
 @app.post("/accounts", status_code=204)
@@ -273,14 +273,15 @@ class Transfer(BaseModel):
     destination: UUID
     amount: Decimal
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "source": "db6008f2-eb47-432b-8977-340bfe029744",
                 "destination": "6d412386-8f3a-4b43-96d4-95d2a67ab430",
                 "amount": 50.0,
             }
         }
+    )
 
 
 @app.post("/transfers", status_code=204)
