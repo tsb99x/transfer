@@ -122,6 +122,8 @@ RETURNS VOID AS $BODY$
     DECLARE
         next_index INTEGER;
     BEGIN
+        PERFORM pg_advisory_xact_lock(1000);
+
         INSERT INTO account(id)
         VALUES ($1);
 
