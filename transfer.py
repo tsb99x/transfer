@@ -1,16 +1,18 @@
+from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from decimal import Decimal
 from logging import getLogger
+from typing import Callable, ClassVar
 from uuid import UUID, uuid4
 
+from asyncpg import Record
 from asyncpg.pool import Pool, create_pool
-from asyncpg.protocol.protocol import Record
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.requests import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,7 +31,7 @@ class Settings(BaseSettings):
     database_min_pool_size: int
     database_max_pool_size: int
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()
@@ -52,8 +54,10 @@ async def lifespan(_: FastAPI):
         min_size=settings.database_min_pool_size,
         max_size=settings.database_max_pool_size,
     )
-    yield
-    await pool.close()
+    try:
+        yield
+    finally:
+        await pool.close()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -72,7 +76,7 @@ async def fetch_accounts_meta(account_ids: list[UUID]) -> dict[UUID, Record]:
 
 
 async def init_account(account_id: UUID, balance: Decimal):
-    await pool.execute(
+    _ = await pool.execute(
         """
         SELECT init_account($1, $2)
         """,
@@ -95,7 +99,7 @@ async def check_account_exists(account_id: UUID) -> bool:
 async def insert_transfer(
     source_id: UUID, index: int, destination_id: UUID, amount: Decimal
 ):
-    await pool.execute(
+    _ = await pool.execute(
         """
         INSERT INTO transfer (source, index, destination, amount)
         VALUES ($1, $2, $3, $4)
@@ -134,21 +138,20 @@ Note that generator of request IDs needed for test mocking.
 ctx_request_id: ContextVar[UUID] = ContextVar("request_id")
 
 
-def gen_request_id() -> UUID:
-    return uuid4()
-
-
 def logging_extra() -> dict[str, UUID]:
     return {"request_id": ctx_request_id.get()}
 
 
 @app.middleware("http")
-async def bind_request_id(request: Request, call_next):
-    request_id = ctx_request_id.set(
-        request.headers.get("X-Request-ID", gen_request_id())
-    )
+async def bind_request_id(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+):
+    x_request_id = request.headers.get("X-Request-ID")
+    request_id = UUID(x_request_id) if x_request_id else uuid4()
+    token = ctx_request_id.set(request_id)
     response = await call_next(request)
-    ctx_request_id.reset(request_id)
+    ctx_request_id.reset(token)
     return response
 
 
@@ -219,7 +222,7 @@ class AccountBalance(BaseModel):
     account_id: UUID
     balance: Decimal
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         json_schema_extra={
             "example": {
                 "account_id": "db6008f2-eb47-432b-8977-340bfe029744",
@@ -272,7 +275,7 @@ class Transfer(BaseModel):
     destination: UUID
     amount: Decimal
 
-    model_config = ConfigDict(
+    model_config: ClassVar[ConfigDict] = ConfigDict(
         json_schema_extra={
             "example": {
                 "source": "db6008f2-eb47-432b-8977-340bfe029744",

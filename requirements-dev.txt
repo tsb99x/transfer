@@ -8,6 +8,12 @@ anyio==4.13.0
     # via
     #   -c requirements.txt
     #   httpx2
+asyncpg==0.31.0
+    # via
+    #   -c requirements.txt
+    #   asyncpg-stubs
+asyncpg-stubs==0.31.2
+    # via -r requirements-dev.in
 bidict==0.23.1
     # via python-socketio
 blinker==1.9.0
@@ -102,7 +108,6 @@ pyzmq==27.1.0
     # via locust
 requests==2.34.2
     # via
-    #   -r requirements-dev.in
     #   locust
     #   python-socketio
 simple-websocket==1.1.0
@@ -111,6 +116,10 @@ truststore==0.10.4
     # via
     #   httpcore2
     #   httpx2
+typing-extensions==4.15.0
+    # via
+    #   -c requirements.txt
+    #   asyncpg-stubs
 urllib3==2.7.0
     # via
     #   geventhttpclient

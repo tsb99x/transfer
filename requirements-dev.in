@@ -1,6 +1,6 @@
 -c requirements.txt
+asyncpg-stubs
 httpx2
 locust
 pytest
 pytest-cov
-requests
