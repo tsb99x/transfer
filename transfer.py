@@ -1,3 +1,4 @@
+from asyncio import Lock
 from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -75,14 +76,18 @@ async def fetch_accounts_meta(account_ids: list[UUID]) -> dict[UUID, Record]:
     return {row["id"]: row for row in res}
 
 
+init_account_lock = Lock()
+
+
 async def init_account(account_id: UUID, balance: Decimal):
-    _ = await pool.execute(
-        """
-        SELECT init_account($1, $2)
-        """,
-        account_id,
-        balance,
-    )
+    async with init_account_lock:
+        _ = await pool.execute(
+            """
+            SELECT init_account($1, $2)
+            """,
+            account_id,
+            balance,
+        )
 
 
 async def check_account_exists(account_id: UUID) -> bool:
