@@ -37,14 +37,13 @@ Transfers, where source and destination, are the same are not allowed, as they d
 
 A minimal number of external dependencies used.
 
-Production ([requirements.txt](requirements.txt)):
+Production:
 
 - [fastapi](https://github.com/tiangolo/fastapi)
 - [uvicorn](https://github.com/encode/uvicorn)
 - [asyncpg](https://github.com/MagicStack/asyncpg)
 
-Development ([requirements-dev.txt](requirements-dev.txt)):
-
+Development:
 - [pytest](https://github.com/pytest-dev/pytest) & [pytest-cov](https://github.com/pytest-dev/pytest-cov)
 - [locust](https://github.com/locustio/locust)
 
@@ -79,7 +78,7 @@ To launch DB, test suite and get code coverage report in HTML format, use:
 
 ```sh
 docker-compose up -d db
-pytest --cov-report html --cov transfer test.py
+uv run pytest --cov-report html --cov transfer test.py
 ```
 
 ## Performance Testing

@@ -14,7 +14,7 @@ services:
   service:
     build: .
     restart: always
-    command: uvicorn --host 0.0.0.0 --log-config logging.conf transfer:app
+    command: uv run uvicorn --host 0.0.0.0 --log-config logging.conf transfer:app
     environment:
       DATABASE_URL: postgresql://user:pass@db:5432/db
       DATABASE_MIN_POOL_SIZE: 5

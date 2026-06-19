@@ -1,0 +1,21 @@
+[project]
+name = "transfer"
+version = "1.0.0"
+description = "Deadlock-free system for bank transfers"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "fastapi>=0.137.2",
+    "pydantic-settings>=2.14.2",
+    "uvicorn>=0.49.0",
+]
+
+[dependency-groups]
+dev = [
+    "asyncpg-stubs>=0.31.2",
+    "httpx2>=2.4.0",
+    "locust>=2.44.4",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
